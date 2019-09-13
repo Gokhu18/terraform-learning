@@ -7,3 +7,8 @@ variable "project" {
   type = "string"
   description = "Google Cloud project name"
 }
+
+variable "ssh_connection" {
+  type = "string"
+  description = "<USERNAME>:<SSH_PUBLIC_KEY>"
+}

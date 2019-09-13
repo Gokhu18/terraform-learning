@@ -1,29 +1,64 @@
+# Using a single workspace:
+terraform {
+  backend "remote" {
+    hostname = "app.terraform.io"
+    organization = "lemairepro"
+
+    workspaces {
+      name = "terraform-learning"
+    }
+  }
+}
+
 provider "google" {
   project     = "${var.project}"
-  region      = "us-central1"
-  zone        = "us-central1-c"
+  region      = "us-west1"
   credentials = "${var.service_account_key}"
 }
 
-resource "google_compute_instance" "vm_instance" {
-  name         = "terraform-instance"
-  machine_type = "f1-micro"
-
-  boot_disk {
-    initialize_params {
-      image = "debian-cloud/debian-9"
-    }
-  }
-
-  network_interface {
-    # A default network is created for all GCP projects
-    network       = "${google_compute_network.vpc_network.self_link}"
-    access_config {
-    }
-  }
+// Terraform plugin for creating random ids
+resource "random_id" "instance_id" {
+ byte_length = 8
 }
 
-resource "google_compute_network" "vpc_network" {
-  name                    = "terraform-network"
-  auto_create_subnetworks = "true"
+// A single Google Cloud Engine instance
+resource "google_compute_instance" "default" {
+ name         = "flask-vm-${random_id.instance_id.hex}"
+ machine_type = "f1-micro"
+ zone         = "us-west1-a"
+
+ boot_disk {
+   initialize_params {
+     image = "debian-cloud/debian-9"
+   }
+ }
+
+// Make sure flask is installed on all new instances for later steps
+ metadata_startup_script = "sudo apt-get update; sudo apt-get install -yq build-essential python-pip rsync; pip install flask"
+
+ metadata = {
+   ssh-keys = "${var.ssh_connection}"
+ }
+
+ network_interface {
+   network = "default"
+
+   access_config {
+     // Include this section to give the VM an external ip address
+   }
+ }
+}
+
+resource "google_compute_firewall" "default" {
+ name    = "flask-app-firewall"
+ network = "default"
+
+ allow {
+   protocol = "tcp"
+   ports    = ["5000"]
+ }
+}
+
+output "ip" {
+ value = "${google_compute_instance.default.network_interface.0.access_config.0.nat_ip}"
 }
